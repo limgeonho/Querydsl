@@ -2,6 +2,7 @@ package study.querydsl;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
@@ -9,7 +10,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.expression.spel.ast.Projection;
 import org.springframework.transaction.annotation.Transactional;
+import study.querydsl.dto.MemberDto;
+import study.querydsl.dto.UserDto;
 import study.querydsl.entity.Member;
 import study.querydsl.entity.QMember;
 import study.querydsl.entity.QTeam;
@@ -444,7 +448,115 @@ public class QuerydslBasicTest {
         for (String s : result) {
             System.out.println("s = " + s);
         }
-
     }
+
+    @Test // select __ from : __에 들어가는 것이 프로젝션
+    public void simpleProjection(){ // return 값이 한 종류이면 바로 받을 수 있음
+        List<String> result = queryFactory
+                .select(member.username)
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
+
+    @Test
+    public void tupleProjection(){ // return 값이 여러 종류인 경우 tuple로 반환된다. => 이것보단 그래도 DTO가 나음
+        List<Tuple> results = queryFactory
+                .select(member.username, member.age)
+                .from(member)
+                .fetch();
+
+        for (Tuple tuple : results) {
+            String username = tuple.get(member.username);
+            Integer age = tuple.get(member.age);
+
+            System.out.println("username = " + username);
+            System.out.println("age = " + age);
+        }
+    }
+
+    @Test
+    public void findDtoByJPQL(){ // JPQL에서 제공하는 생성자모양의 DTO가져오는 방법...좀 new study.querydsl.dto.MemberDto(m.username, m.age) 복잡... (생성자 방식만 지원함)
+        List<MemberDto> result = em.createQuery("select new study.querydsl.dto.MemberDto(m.username, m.age) from Member m", MemberDto.class)
+                .getResultList();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    // DTO접근방법 => queryds은 3가지 제공 (프로퍼티 접근, 필드 직접 접근, 생성자 접근)
+    @Test
+    public void findDtoBySetter(){ // 프로퍼티 접근 방법
+        List<MemberDto> result = queryFactory
+                .select(Projections.bean(MemberDto.class, // <= 이 부분만 작성하면됨...!!!bb
+                        member.username,
+                        member.age
+                ))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @Test
+    public void findDtoByFields(){ // 필드 접근 방법
+        List<MemberDto> result = queryFactory
+                .select(Projections.fields(MemberDto.class, // <= 이 부분만 작성하면됨...!!!bb
+                        member.username,
+                        member.age
+                ))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @Test
+    public void findDtoByConstructor(){ // 생성자 접근 방법
+        List<MemberDto> result = queryFactory
+                .select(Projections.constructor(MemberDto.class, // <= 이 부분만 작성하면됨...!!!bb
+                        member.username,
+                        member.age
+                ))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @Test
+    public void findUserDto(){ //
+        List<UserDto> result = queryFactory
+                .select(Projections.fields(UserDto.class, // <= 이 부분만 작성하면됨...!!!bb
+                        member.username.as("name"), // UserDto에는 username이 아닌 name으로 선언되어 있기 때문에 null값이 들어간다 따라서, member.username.as("name") 해준다.
+                        member.age
+                ))
+                .from(member)
+                .fetch();
+
+        for (UserDto userDto : result) {
+            System.out.println("userDto = " + userDto);
+        }
+    }
+//    List<UserDto> fetch = queryFactory
+//            .select(Projections.fields(UserDto.class,
+//                    member.username.as("name"),
+//                    ExpressionUtils.as(
+//                            JPAExpressions
+//                                    .select(memberSub.age.max())
+//                                    .from(memberSub), "age")
+//                    )
+//            ).from(member)
+//            .fetch();
 
 }
